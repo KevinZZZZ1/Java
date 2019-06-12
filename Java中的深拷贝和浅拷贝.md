@@ -10,7 +10,7 @@
 - **深拷贝**：**不仅对基本类型变量进行值赋值，而且对于引用类型会为新对象创建相应的新的引用类型，即新老对象引用的是不同的对象**；
 - 示意图：
 
-![image](https://github.com/KevinZZZZ1/Java/tree/master/images/深拷贝和浅拷贝.png)
+![image](https://github.com/KevinZZZZ1/Java/blob/master/images/%E6%B7%B1%E6%8B%B7%E8%B4%9D%E5%92%8C%E6%B5%85%E6%8B%B7%E8%B4%9D.png)
 
 
 
