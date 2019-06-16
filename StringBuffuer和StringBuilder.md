@@ -116,11 +116,11 @@ pulic static void main(String[] args){
 
 分析：
 
-![avatar](F:\找工作\Java基础\Java\images\String.intern1.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/String.intern1.png)
 
 - **在JDK6中全为false的原因是，JDK6的常量池是放在Perm区的，Perm区和Java堆是完全分开的**，在s创建的时候，会在Java堆创建`String obj`和在常量池中创建常量"1"，s2则是直接使用的字符串常量池中的常量“1”，所以s引用的是Java堆上的字符串对象，而s2引用的是字符串常量池中的常量，所以为false；同理对于s3、s4也是一样；
 
-![avatar](F:\找工作\Java基础\Java\images\String.intern1.2.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/String.intern1.2.png)
 
 - **在JDK7中字符串常量是放在Java堆中**，对于`String s3 = new String("1") + new String("1");`，这句代码中现在生成了2最终个对象，是字符串常量池中的“1” 和 Java堆中的 s3引用指向的对象。中间还有2个匿名的`new String("1")`我们不去讨论它们。此时s3引用对象内容是”11”，但此时常量池中是没有 “11”对象的；
 - `s3.intern();`是将 s3中的“11”字符串放入 String 常量池中，因为此时常量池中不存在“11”字符串，由于 jdk7 中常量池不在 Perm 区域了，所以常量池中不需要再存储一份对象了，可以直接存储堆中的引用。这份引用指向 s3 引用的对象。 也就是说引用地址是相同的；
@@ -153,7 +153,7 @@ public static void main(String[] args){
 
 - 对于JDK6的情况，和第一段代码的分析是一样的，就是**s是指向Java堆上的对象的，s2是指向字符串常量池中的常量**，所以结果一定是false；（s3和s4也是类似的分析）；
 
-![avatar](F:\找工作\Java基础\Java\images\String.intern2.1.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/String.intern2.1.png)
 
 - 对于JDK7来说，首先执行`String s4 = "11";`声明 s4 的时候常量池中是不存在“11”对象的，执行完毕后，“11“对象是 s4 声明产生的新对象。然后再执行`s3.intern();`时，常量池中“11”对象已经存在了，因此 s3 和 s4 的引用是不同的；
 - 对于s和s2也是一样的分析；
