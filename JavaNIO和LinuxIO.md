@@ -157,7 +157,7 @@
 
 ### 1.2I/O多路复用：select、poll、epoll
 
-首先由一点是需要明确的，`select`、`poll`、`epoll`都是属于I/O多路复用的，即一个进程可以监视多个文件描述符，一旦某个文件描述符就绪能够通知程序进行读写操作。
+首先由一点是需要明确的，`select`、`poll`、`epoll`都是属于I/O多路复用的，即一个进程可以监视多个文件描述符，一旦某个文件描述符就绪能够通知程序进行读写操作。**使用select、poll只能知道I/O事件发生了，但是却不知道是哪几个流，所以只能轮询所有流找出读出或写入数据，这样在处理多个流的时候会导致每次轮询的时间很长**；**而epoll则是会告知用户线程哪个流、发生了什么I/O事件，这时我们就能直接处理I/O**
 
 #### 1.2.1select
 
@@ -211,11 +211,18 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 
   - int epoll_create(int size);
 
-    **创建一个`epoll`句柄**，`size`用来告诉内核监视的文件描述符的个数，这只是一个建议并不是对最大文件描述符数的限制；
+    **创建一个`epoll`对象**，其实`size`参数并没有什么用；
+
+    当创建好`epoll`句柄之后，它也会占用一个`fd`值，所以在使用完`epoll`后必须调用`close()`关闭，否则`fd`可能被耗尽；
 
   - int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
 
-    **对指定文件描述符fd执行op操作**：
+    **向`epoll`对象中添加或删除某个流的某个事件**：
+
+    - ```c++
+      epoll_ctl(epollfd, EPOLL_CTL_ADD, socket, EPOLLIN);//注册缓冲区非空事件，即有数据流入
+      epoll_ctl(epollfd, EPOLL_CTL_DEL, socket, EPOLLOUT);//注册缓冲区非满事件，即流可以被写入
+      ```
 
     - `epfd`是`epoll_create`的返回值；
 
@@ -244,24 +251,16 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
 
   - int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
 
-    等待`epfd`上的IO事件，最多返回`maxevents`个事件；
+    **等待直到注册的事件发生**；
 
     - `events`用来从内核得到事件集合；
     - `maxevents`告诉内核该`events`有多大；
+    - `timeout`表示超时时间；
 
-- 工作模式：
+- 工作模式：`epoll`对于文件描述符的操作有两种模式：LT（Level trigger）模式、ET（Edge trigger）模式，LT是默认模式；
 
-  - LT模式：
-
-  - ET模式：
-
-    
-
-### 
-
-
-
-
+  - LT模式：当`epoll_wait`检测到描述符事件发生并将此事件通知应用程序，**应用程序可以不立即处理该事件**，下次调用`epoll_wait`时，会再次响应应用程序并通知此事件；
+  - ET模式：当`epoll_wait`检测到描述符事件发生并将此事件通知应用程序，**应用程序必须立即处理该事件**，如果不处理，下次调用`epoll_wait`时，不会再次响应应用程序并通知此事件；
 
 
 
