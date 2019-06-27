@@ -3,10 +3,9 @@
 ## `Exception`和`Error`的联系
 
 - `Exception`和`Error`都继承了`Throwable`类，`Java`中只有Throwable类型的实例才能被抛出（throw）或捕获（catch）；
-
 - `Error`和`RuntimeException`及其子类被称为未检查异常，其他异常被称为检查异常；
 
-![avatar](F:\找工作\Java基础\Java\images\Excption和Error.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/Excption%E5%92%8CError.png)
 
 ## `Exception`和`Error`的区别
 
@@ -35,12 +34,6 @@
 
 
 
-
-
-
-
-
-
 ## `throw`和`throws`关键字的不同
 
 - `throw`是用来抛出任意异常的，可以抛出`Throwable`、自定义异常类对象等；
@@ -50,7 +43,7 @@
 
 ## `try-catch-finally-return`的执行顺序
 
-- 不管异常是否发生，`finally`块中的代码都会执行；
+- 不管异常是否发生，`finally`块中的代码都会执行（除非在`try`或`catch`语句中执行了`System.exit(0)`方法）；
 
 - 当`try`或`catch`中有`return`语句时，`finally`块仍然执行；
 
@@ -58,10 +51,167 @@
 
 - `finally`块最好不要包含`return`，否则程序会提前退出；
 
-- 实例代码：
+- 实例代码1：
 
   - ```java
+    public static void demo(){
     
+            try {
+                System.out.println("try");
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+            }finally {
+                System.out.println("finally");
+            }
+    
+    }
     ```
 
-  - 
+  - ```
+    执行结果为：
+    try
+    finally
+    ```
+
+- 实例代码2：
+
+  - ```java
+    public class TestTryCatch {
+    
+        public static int demo2(){
+    
+            try {
+                System.out.println("try");
+                return 0;
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+                return -1;
+            }finally {
+                System.out.println("finally");
+            }
+    
+        }
+    
+        public static void main(String[] args) {
+            System.out.println("main "+demo2());
+        }
+    }
+    ```
+
+  - ```
+    执行结果是：
+    try
+    finally
+    main 0
+    // 执行完try和finally语句之后最后执行return
+    ```
+
+- 实例代码3：
+
+  - ```java
+    public class TestTryCatch {
+    
+        public static int demo3(){
+            int i=0;
+            try {
+                i=6;
+                System.out.println("try "+i);
+                return i;
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+                return -1;
+            }finally {
+                i=12;
+                System.out.println("finally "+i);
+            }
+    
+        }
+    
+        public static void main(String[] args) {
+            System.out.println("main "+demo3());
+        }
+    }
+    ```
+
+  - ```
+    执行结果为：
+    try 6
+    finally 12
+    main 6
+    // 返回值仍然为6，也就是在finally中对i的赋值并未改变i的返回值
+    ```
+
+- 实例代码4：
+
+  - ```java
+    public class TestTryCatch {
+    
+        public static int demo4(){
+            int i=0;
+            try {
+                i=6;
+                System.out.println("try "+i);
+                return i;
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+                return -1;
+            }finally {
+                i=12;
+                System.out.println("finally "+i);
+                return i;
+            }
+    
+        }
+    
+        public static void main(String[] args) {
+            System.out.println("main "+demo4());
+        }
+    }
+    ```
+
+  - ```
+    执行结果为：
+    try 6
+    finally 12
+    main 12
+    // 在程序还未执行try中的return语句时就先执行了finally里面的return语句所以返回结果为12。
+    ```
+
+- 实例代码5：
+
+  - ```java
+    public class TestTryCatch {
+    
+        public static int demo5(){
+            try {
+                System.out.println("try");
+                return printX();
+            }catch (Exception e){
+                System.out.println(e.getMessage());
+                return -1;
+            }finally {
+                System.out.println("finally");
+    
+            }
+    
+        }
+    
+        public static int printX(){
+            System.out.println("X");
+            return 0;
+        }
+    
+        public static void main(String[] args) {
+            System.out.println("main "+demo5());
+        }
+    }
+    ```
+
+  - ```
+    执行结果为：
+    try
+    X
+    finally
+    main 0
+    // 程序顺序执行时先执行printX（）函数，此时得到返回值0并且将0保存到variable中对应的用于保存返回值的区域，此时程序在执行finally语句因为finally语句中没有return语句，所以程序将返回值区域的0返回给上一级函数。
+    ```
