@@ -1,4 +1,6 @@
-# `final`、`finally`以及`finalized`
+# `final`、`finally`以及`finalize`
+
+[TOC]
 
 ## ` final`
 
@@ -58,10 +60,13 @@
 
 
 
-## `finalized`
+## `finalize`
 
-- `finalized`是`java.lang.Object`类中的一个方法，设计的目的是保证在虚拟机垃圾回收之前完成特定资源回收，但是`finalized`机制已经不推荐使用，被设置为废弃方法；
-- 不适用`finalized`原因：无法保证 finalize 什么时候执行，执行的是否符合预期，使用不当会影响性能、导致程序死锁；
+- `finalize`是`java.lang.Object`类中的一个方法，设计的目的是保证在虚拟机垃圾回收之前完成特定资源回收，但是`finalized`机制已经不推荐使用，被设置为废弃方法；
+- 不使用`finalize`原因：无法保证 finalize 什么时候执行，执行的是否符合预期，使用不当会影响性能、导致程序死锁；
+- `finalize`与C++中的析构函数不是对应的。C++中的析构函数调用的时机是确定的（对象离开作用域或delete掉），但`Java`中的`finalize`的调用具有不确定性；
+- `finalize`方法执行大体流程是：当对象变成`GC Roots`不可达时，GC会判断该对象是否覆盖了`finalize`方法，如未覆盖，则直接进行回收；否则，且该对象的`finalize`方法未执行，会将该对象放入`F-Queue`队列，由低优先级线程执行该队列中对象的`finalize`方法；执行完`finalize`方法之后，GC会再次判断对象是否可达，如不可达，直接回收；否则对象复活；
+
 
 
 
