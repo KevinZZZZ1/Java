@@ -14,11 +14,11 @@ Java程序要想能够执行，要经历以下步骤：
 
 大概流程如下图所示：
 
-![avatar](F:\找工作\Java基础\Java\images\Java程序执行流程图.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/Java程序执行流程图.png)
 
 一个类的生命周期可以用下图表示：
 
-![avatar](F:\找工作\Java基础\Java\images\类的生命周期.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/%E7%B1%BB%E7%9A%84%E7%94%9F%E5%91%BD%E5%91%A8%E6%9C%9F.png)
 
 其中验证、准备、解析三个部分又被合起来称为链接；
 
@@ -36,7 +36,7 @@ Java程序要想能够执行，要经历以下步骤：
   - **Extension ClassLoader**：负责加载Java扩展类，主要是`%JRE_HOME%/lib/ext`目录下的jar文件，由Java实现；
   - **Application ClassLoader**：负责加载当前应用的ClassPath中的所有类，由Java实现；
 
-![avatar](F:\找工作\Java基础\Java\images\JVM架构图.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/JVM%E6%9E%B6%E6%9E%84%E5%9B%BE.png)
 
 ### 类加载器详解
 
@@ -145,7 +145,7 @@ F:\IdeaProjects\Javajichu\out\production\Javajichu
 
 - Java类加载机制使用双亲委派模式：即如果一个类加载器收到了类加载请求，它并不会自己先去加载，而是把这个请求委托给父类的加载器去执行，如果父类加载器还存在其父类加载器，则进一步向上委托，依次递归，请求最终将到达顶层的启动类加载器，如果父类加载器可以完成类加载任务，就成功返回，倘若父类加载器无法完成此加载任务，子加载器才会尝试自己去加载；如下图所示：
 
-  ![avatar](F:\找工作\Java基础\Java\images\双亲类加载机制.png)
+  ![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/%E5%8F%8C%E4%BA%B2%E7%B1%BB%E5%8A%A0%E8%BD%BD%E6%9C%BA%E5%88%B6.png)
 
 - 双亲委派模式的优势：Java类随着它的类加载器一起具备了一种带有优先级的层次关系，
 
