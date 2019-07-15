@@ -18,13 +18,13 @@ list1.add(person);
 
 上面这段代码执行完之后，JVM的运行时内存如下图所示:
 
-![avatar](F:\找工作\Java基础\Java\images\创建ArrayList.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/%E5%88%9B%E5%BB%BAArrayList.png)
 
 其中`DEFAULTCAPACITY_EMPTY_ELEMENTDATA`是一个`Object`类型的数组，具体的用处下文再解释；
 
 ### ArrayList继承关系、接口实现
 
-![avatar](F:\找工作\Java基础\Java\images\ArrayListUML.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/ArrayListUML.png)
 
 从图中可以看出ArrayList继承了AbstractList类，实现了List、RandomAccess、Serializable、Cloneable接口；
 
