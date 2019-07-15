@@ -6,7 +6,7 @@
 
 - String、StringBuffer、String Builder：
   - 三者都是final类，都不能被继承；
-  - ssString类是不可变的，StringBuffer、StringBuilder是可变的；
+  - String类是不可变的，StringBuffer、StringBuilder是可变的；
   - StringBuffer是线程安全的，StringBuilder不是线程安全的；
 
 由于Java字符串的不可变性，导致在使用+进行字符串拼接时，它们的内容都要被拷贝并生产一个新的字符串，这样的操作是很低效的，而且当内存中引用对象多了之后，JVM的GC就会开始工作，性能也会下降；
