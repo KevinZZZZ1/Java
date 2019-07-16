@@ -88,7 +88,7 @@ public ArrayList(){
 ```
 
 - 这是平时最常用的构造函数，其中会将elementData数组的大小设置为DEFAULT_CAPACITY，也就是10；
-- 这里并没有着急创建长度为10的Object数组，而是将一个空数组DEFAULTCAPACITY_EMPTY_ELEMENTDATA赋值给了elementData，这么做的原因就是延迟内存分配，等到需要使用的时候才分配内存；
+- **这里并没有着急创建长度为10的Object数组，而是将一个空数组DEFAULTCAPACITY_EMPTY_ELEMENTDATA赋值给了elementData，这么做的原因就是延迟内存分配，等到需要使用的时候才分配内存，而且DEFAULTCAPACITY_EMPTY_ELEMENTDATA被定义成了静态常量，是存在于方法区的常量池中的，当创建多个使用默认构造函数的ArrayList时，elementData数组都会指向该静态常量**；
 
 ```java
 public ArrayList(Collection<? extends E> c) {
