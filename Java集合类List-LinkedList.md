@@ -26,7 +26,7 @@ public class LinkedList<E>
 
 从上面的源码可以看出，LinkedList继承了AbstractSequentialList抽象类，实现了List、Deque、Cloneable、Serializable接口；
 
-![avatar](F:\找工作\Java基础\Java\images\LinkedListUML.png)
+![avatar](https://github.com/KevinZZZZ1/Java/blob/master/images/LinkedListUML.png)
 
 - 实现Serializable、Cloneable两个标识接口，表示LinkedList能实现序列化和能被克隆；
 - 实现List、Deque接口，表示LinkedList不但有List的相关操作，还有Deque的操作；
