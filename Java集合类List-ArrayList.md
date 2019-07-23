@@ -188,7 +188,8 @@ private void rangeCheckForAdd(int index) {
 ```
 
 - 指定数组index位置添加元素。首先会检查index是否超出数组的范围，然后会把index位置以后的元素向后移一位，然后再添加；
-
+- 注意这里`arraycopy()`函数的用法，先给出该函数的完整定义`public static void arraycopy(Object src, int srcPos, Object dest, int destPos, int length)`其中：　　Object src : 原数组 int srcPos : 从元数据的起始位置开始 Object dest : 目标数组 int destPos : 目标数组的开始起始位置 int length  : 要copy的数组的长度
+- `arraycopy()`的作用主要是移位，比如ArrayList底层数组elementData为[0,1,2,3,4,5]，当index为2时，执行`arraycopy(elementData, index, elementData, index+1, size-index)`得到的结果是：[0,1,2,2,3,4,5]，**也就是说会从index=2+1=3的位置开始，将数组元素替换为从index起始位置为index=2，长度为6-2=4的数据。**
 
 
 ### 删除操作
