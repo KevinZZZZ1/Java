@@ -288,7 +288,7 @@ B.join()
 
 
 
-#### `Happens-Before`总结
+#### Happens-Before总结
 
 **`Happens-Before`规则实际上是对可见性的一种约束，A `Happens-Before` B 意味着A事件对于B事件是可见的，无论A事件和B事件是否发生在同一线程里**；
 
@@ -371,35 +371,490 @@ class Test{
 - `synchronized`关键字修饰静态方法时，**锁定当前类的class对象，在这个例子中就是Test.class；**
 - `synchronized`关键字修饰非静态方法时，**锁定当前实例对象this；**
 
+例：
 
+```java
+class SafeCalc {
+    long value = 0L;
+    long get(){
+        return value;
+    }
+    synchronized void addOne(){
+        value += 1;
+    }
+    
+}
+```
+
+- 对于上面的例子来说，使用`get()`和`addOne()`方法会不会出现并发问题？
+
+  - 分析：
+
+    - 根据`Happens-Before`规则中的**管程锁规则**：对一个锁的解锁`Happens-Before`对该锁的加锁，再结合**程序的顺序性规则**（对于变量value的修改`Happens-Before`对管程的解锁），所以在`addOne()`函数中，之前的线程对于变量value的操作，之后的线程是一定可见的；
+    - 但是对于`get()`函数来说，value的可见性是无法保证的，即一个线程调用`addOne()`函数之后，变量value的可见性是无法保证的；
+
+  - 所以上面的例子，`addOne()`函数线程安全，`get()`函数线程不安全；
+
+  - 可以通过在`get()`函数前也加上同步关键字，来使得它线程安全；
+
+    ```java
+    class SafeCalc {
+        long value = 0L;
+        synchronized long get(){
+            return value;
+        }
+        synchronized void addOne(){
+            value += 1;
+        }
+    }
+    ```
+
+    上面代码这种情况下，`get()`和`addOne()`函数要访问变量value，都要获得this这把锁，所以`get()`和`addOne()`是互斥的，也就是同一事件只能有一个方法访问变量value；
+
+    ![avatar](F:\找工作\Java基础\Java\images\Synchronized可见性.png)
 
 ### 锁和受保护资源的关系
 
+一般来说，**锁和受保护资源的关系是1：N的关系，也就是说一把锁可以保护多个资源**；
+
+#### 多个锁保护一个资源带来的并发问题
+
+**不能使用多个锁来保护同一个资源**，这样会造成并发问题，例：
+
+```java
+class SafeCalc {
+  static long value = 0L;
+  synchronized long get() {
+    return value;
+  }
+  synchronized static void addOne() {
+    value += 1;
+  }
+}
+```
+
+- 上面这段代码有两个锁，第一个是`get()`函数的this锁，第二个是`addOne()`函数的SafeCalc.class；而且这两个锁同时保护了变量value，这样就会造成问题：由于临界区 `get()` 和 `addOne()` 是用两个锁保护的，因此这两个临界区没有互斥关系，所以`addOne()`对于value的修改`get()`是不可见的；
+
+![avatar](F:\找工作\Java基础\Java\images\两个锁保护同一个资源.png)
+
+#### 保护没有关联的多个资源
+
+**当我们要保护多个资源时，首先要区分这些资源之间是否存在关联，保护没有关联的多个资源可以为每个资源都设置一把锁**；
+
+例如，在银行业务中有针对账号的余额取款的操作，也有对于账号密码的修改操作，但是账号余额和账号密码是两个不关联的资源，所以可以使用两把锁；
+
+```java
+class Account {
+    // 锁：保护账户余额
+    private final Object balLock = new Object();
+    // 账户余额  
+    private Integer balance;
+
+    // 锁：保护账户密码
+    private final Object pwLock = new Object();
+    // 账户密码
+    private String password;
+
+    // 取款
+    void withdraw(Integer amt) {
+        synchronized(balLock) {
+            if (this.balance > amt)
+                this.balance -= amt;
+        }
+    } 
+
+    // 查看余额
+    Integer getBalance() {
+        synchronized(balLock) {
+            return balance;
+        }
+    }
 
 
+    // 更改密码
+    void updatePassword(String pw){
+        synchronized(pwLock) {
+            this.password = pw;
+        }
+    } 
+    // 查看密码
+    String getPassword() {
+        synchronized(pwLock) {
+            return password;
+        }
+    }
 
+}
+
+```
+
+- 正如上面代码所描述的，使用对象`balLock`作为余额的锁，对象`pwLock`作为密码的锁，不同的资源使用不同的锁进行保护；
+- 也可以使用一把锁来保护余额、密码这两个资源，但是这么做会导致取款、查看余额、修改密码、查看密码这四个操作是串行执行的，如果使用两把锁，那么取款和修改密码是可以并行的；
+- **这种使用不同锁对受保护资源进行细化管理，能够提升性能，也叫做细化锁**；
+
+#### 保护有关联关系的多个资源
+
+例如，在银行业务里面的转账操作，账户A转给账户B100元，那么这两个账户就是有关联关系的，**这里有个重要的问题就是只能使用自己的锁锁住自己的资源，不能锁住其他人的资源**；
+
+下面的代码就犯了这个错误：
+
+```java
+class Account {
+    private int balance;
+    // 转账
+    synchronized void transfer(
+        Account target, int amt){
+        if (this.balance > amt) {
+            this.balance -= amt;
+            target.balance += amt;
+        }
+    }
+    
+}
+
+```
+
+- 这里的锁是this，this这个锁能够保护资源this.balance，但是不能保护别人的资源target.balance；
+- 比如说，假设有 A、B、C 三个账户，余额都是 200 元，我们用两个线程分别执行两个转账操作：账户 A 转给账户 B 100 元，账户 B 转给账户 C  100元；
+- 如果使用上面的代码会出现账户B余额最后可能是300，也可能是100，但绝对不可能是200；
+- 原因是，假设线程1执行账户 A 转给账户 B 100 元，线程2执行账户 B 转给账户 C  100元，根据上面的代码，线程1和线程2是可能在不同CPU上同时执行的，因为线程1的锁是账户A对象，线程2的锁是账户B对象；这两个线程可以同时进入临界区，当这两个线程同时进入临界区时，都会读到账户 B 的余额为 200，导致最终账户 B 的余额可能是 300（线程 1 后于线程2 写 B.balance，线程 2 写的 B.balance 值被线程 1 覆盖），可能是100（线程 1 先于线程 2 写 B.balance，线程 1 写的 B.balance 值被线程 2 覆盖）；
+
+上面代码的问题主要是，使用对象级别的锁，这样的锁并不能覆盖所有受保护的资源，如何正确使用锁来保护关联关系的资源？**就是让有关联关系的资源公用一把锁**；
+
+```java
+class Account {
+    private int balance;
+    // 转账
+    void transfer(Account target, int amt){
+        synchronized(Account.class) {
+            if (this.balance > amt) {
+                this.balance -= amt;
+                target.balance += amt;
+            }
+        }
+    } 
+}
+
+```
+
+- 上面的代码使用过Account.class来保护不同对象的临界区，Account.class是JVM在Account类加载时创建的，它一定是唯一的；
+
+![avatar](F:\找工作\Java基础\Java\images\关联关系资源的保护.png)
+
+**如果资源之间没有关系，很好处理，每个资源一把锁就可以了。如果资源之间有关联关系，就要选择一个粒度更大的锁，这个锁应该能够覆盖所有相关的资源；**
 
 
 
 ## 死锁
 
+之前说过了，导致并发程序容易出现bug的原因：可见性、原子性、有序性；
 
+然后又介绍了解决上面问题的方法：使用JVM模型（`Happens-Before`规则、`volatile`修饰符）来解决可见性和有序性；使用互斥锁来解决原子性；
+
+但是使用大粒度的互斥锁会导致操作是串行的，这样的执行效率很低，使用细粒度的锁能够使一些操作并发，但是容易造成死锁问题；
+
+### 细粒度锁
+
+对于之前那个转账的例子来说，使用细粒度锁是：转入账户一把锁，转出账户一把锁，在`transfer()`方法内部，首先先尝试锁定，转出账户this，然后再尝试锁定转入账户target，只有二者都成功时，才能进行转账；
+
+```java
+class Account {
+    private int balance;
+    
+    void transfer(Account target, int amt) {
+        // 锁定转出账户
+        synchronized(this){
+            // 锁定转入账户
+            synchronized(target){
+                if(this.balance>amt){
+                    this.balance -= amt;
+                    target.balance += amt;
+                }
+            }
+        }
+    }
+    
+}
+```
+
+- 上面的锁this，锁target就称为细粒度锁，**使用细粒度锁能提高并行度，从而优化性能**；
+- 但是上面的方法并不是没有问题的，锁细化之后容易出现死锁问题；
+- 比如有两个线程T1，T2，T1执行账户 A 转账户 B 的操作，账户 A.transfer(账户B)，T2执行账户 B 转账户 A 的操作，账户 B.transfer(账户A)；那么当T1和T2执行`synchronized(this)`时，T1会获得对象A的锁，T2会获得对象B的锁，接着执行`synchronized(target)`时，T1需要对象B的锁，T2需要对象A的锁，这是T1，T2就会进行无限期的等待；
+
+### 死锁
+
+死锁是指，**一组相互竞争资源的线程，因为等待资源而永久阻塞的现象**；
+
+对于死锁的判断，**可以使用资源分配图，如果资源分配图有环存在，则会出现死锁**；
+
+**导致死锁的原因有：**
+
+- **互斥**：贡献资源X、Y只能被一个线程使用；
+- **占用等待**：当一个线程占有资源X，在等待资源Y的过程中不会释放X；
+- **不可抢占**：当一个线程占有资源X后，其他线程无法抢占；
+- **循环等待**：线程T1等待线程T2的资源，线程T2等待线程T1的资源；
+
+一旦造成死锁，大多数情况都是通过重启系统来解决，所以解决死锁最好的办法是预防死锁；
+
+
+
+### 死锁预防
+
+**只要破坏造成死锁原因4个中的1个就能预防死锁**，其中互斥是无法破坏的，因为我们用锁就是看上了锁互斥的特性，所以只能从剩下的3个条件入手；
+
+#### 1.破坏占用等待条件
+
+也就是说，**一次性申请所有需要的资源**，对于上面那个转账的例子来说，此时需要一个对象来同时申请所有资源和同时释放所有资源，具体代码如下：
+
+```java
+class Allocator {
+    // 用来记录申请的资源
+    private List<Object> als = new ArrayList<>();
+    // 一次性申请所有资源
+    synchronized boolean apply(Object from, Object to) {
+        if(als.contains(from) || als.contains(to)){
+            return false;  
+        } else {
+            als.add(from);
+            als.add(to);  
+        }
+        return true;
+    }
+    // 归还资源
+    synchronized void free(
+        Object from, Object to){
+        als.remove(from);
+        als.remove(to);
+    }
+}
+
+class Account {
+    // actr 应该为单例
+    private Allocator actr;
+    private int balance;
+    // 转账
+    void transfer(Account target, int amt){
+        // 一次性申请转出账户和转入账户，直到成功
+        while(!actr.apply(this, target));
+        try{
+            // 锁定转出账户
+            synchronized(this){              
+                // 锁定转入账户
+                synchronized(target){           
+                    if (this.balance > amt){
+                        this.balance -= amt;
+                        target.balance += amt;
+                    }
+                }
+            }
+        } finally {
+            actr.free(this, target)
+        }
+    } 
+}
+```
+
+
+
+
+
+
+
+#### 2.破坏不可抢占条件
+
+**线程能主动释放当前占有的资源**，`synchronized`关键字是无法做到这点的；
+
+但是JDK中的java.util.concurrent包下的Lock是能实现破环不可抢占条件的；
+
+
+
+#### 3.破坏循环等待条件
+
+也就是说，**需要对资源进行排序，然后按顺序申请资源**，比如还是上面转账的例子，我们假设每个账户都有不同的属性 id，这个 id 可以作为排序字段，申请的时候，我们可以按照从小到大的顺序来申请；①~⑥处的代码对转出账户（this）和转入账户（target）排序，然后按照序号从小到大的顺序锁定账户；
+
+```java
+class Account {
+    private int id;
+    private int balance;
+    // 转账
+    void transfer(Account target, int amt){
+    	Account left = this        ①
+        Account right = target;    ②
+        if (this.id > target.id) { ③
+        	left = target;           ④
+            right = this;            ⑤
+         }                          ⑥
+         // 锁定序号小的账户
+         synchronized(left){
+         	// 锁定序号大的账户
+            synchronized(right){ 
+            	if (this.balance > amt){
+                	this.balance -= amt;
+                    target.balance += amt;
+                }
+            }
+        }
+    } 
+}
+```
 
 
 
 ## 等待-通知机制
 
+之前我们说过了引起并发编程产生众多bug的原因：可见性，有序性，原子性；以及解决这些问题使用的方法：Java内存模型（`Happens-Before`规则）解决可见性和有序性，互斥锁解决原子性；以及在使用互斥锁会碰到的问题：死锁，以及预防死锁的办法（破坏占有等待条件；破坏不可抢占条件；破坏循环等待条件）；
 
+在使用破坏占有等待条件是指，**如果一个线程无法得到所有资源那么该线程会主动放弃自己已得到的资源进入等待状态**；那么这里就有一个问题，进入等待状态的线程是如何知道自己要的资源可用了呢？
+
+- 使用一个`while`循环一直轮询等待，直到条件被满足；这种做法在轮询条件执行时间很多而且并发量不大的情况下是不错的，但是一旦并发量很大，这种循环方式对CPU的占用就很大了；
+- **使用等待-通知机制**：如果线程发现条件不满足，则阻塞自己进入等待状态，当线程要求的条件得到满足时，通知线程重新执行；
+
+**等待-通知机制是指，线程首先获得互斥锁，当线程要求的条件得不到满足时，线程会释放互斥锁并进入等待状态，当线程要求的条件得到满足时，通知等待的线程，重新获得互斥锁**；
+
+### 用synchronized实现等待-通知机制
+
+使用`synchronized`关键字配上`wait()`、`notify()`、`notifyAll()`三个方法就能实现等待-通知机制；
+
+#### wait()
+
+线程为了进入临界区，都要获得互斥锁，对应这个**互斥锁有一个等待队列**，当某个线程获得互斥锁进入临界区之后，发现自己要求的条件没有达成，**那么此时线程会调用互斥锁对象的wait()方法释放互斥锁并进入等待状态**；此时线程会进入**互斥锁的另一个等待队列**；具体如下图所示：
+
+![avatar](F:\找工作\Java基础\Java\images\wait的原理图.png)
+
+#### notify()、notifyAll()
+
+当对象要求的条件得到满足时，调用互斥锁对象的`notify()`或`notifyAll()`方法就能通知**互斥锁等待队列（就是等待状态线程进入的队列）**中的线程条件已经满足；
+
+此时，被通知的线程想要进入临界区的话，还是要重新获取互斥锁的，**重新获得互斥锁之后才能继续执行wait()之后的代码**；
+
+![avatar](F:\找工作\Java基础\Java\images\notify原理图.png)
+
+**需要注意的是**：
+
+- 对于等待队列来说，它是属于互斥锁的，所以wait()、notify()、notifyAll()方法都是针对互斥锁来说的，具体的就是：
+  - 如果synchronized锁住的是this对象，那么对应的是this.wait()、this.notify()、this.notifyAll()；
+  - 如果synchronized锁住的是target对象，那么对应的是target.wait()、target.notify()、target.notifyAll()；
+- 由于一定要先获得锁再使用等待-通知机制，所以一定是在synchronized同步块内调用wait()、notify()、notifyAll()方法；
+
+
+
+#### 等待-通知机制的应用
+
+下面我们使用等待-通知机制来实现一次性获得转入账户和转出账户：
+
+```java
+class Allocator{
+    private List<Object> als;
+    // 一次性申请所有资源
+    synchronized void apply(Object from, Object to){
+        while(als.contains(from) || als.contains(to)){
+            try{
+                wait();
+            }catch(Exception e){
+                
+            }
+        }
+        als.add(from);
+        als.add(to);
+    }
+    
+    // 规划所有资源
+    synchronized void free(Object from, Object to){
+        als.remove(from);
+        als.remove(to);
+        notifyAll();
+    }
+    
+}
+```
 
 
 
 ## 安全性、活跃性以及性能问题
 
+之前我们学习了导致并发编程bug多的原因：可见性，有序性，原子性；以及解决方法：Java内存模型，互斥锁；而且解决了在使用互斥锁时可能会出现的死锁情况（破坏占有等待，破坏不可抢占；破坏循环等待），以及在申请所有资源时遇到条件不满足的情况（使用等待-通知机制）；
 
+现在来总结一下并发编程中要注意的问题：
 
+### 安全性问题
 
+也就是我们通常说的线程安全问题，线程安全的本质就是正确性，**也就是说程序能够按照期望执行**；不会产生任何意外；
+
+**只要保证不会出现可见性问题、原子性问题、有序性问题，那么线程安全是一定能保证的**；
+
+而且安全性问题发生有一个前提条件：**会出现多个线程同时访问或修改共享变量的情况**，如果这个前提条件不满足，那么线程一定是安全的，比如说线程本地存储(Thread Local Storage)；
+
+总结来说，安全性问题可以分成两个方面：
+
+- 数据竞争：多个线程同时对共享变量进行读写；
+- 竞态条件：程序的执行解决依赖于线程的执行顺序，也就是程序执行的结果是不确定的，再次执行该程序可能会出现不一样的结果；
+
+**数据竞争和竞态条件问题都可以使用互斥，也就是锁来解决；**
+
+### 活跃性问题
+
+活跃性问题可以分为：
+
+- 死锁：两个或多个线程占有某个资源，等待其他资源的过程；
+
+  解决方法：破坏等待占有条件；破坏不可抢占条件；破坏循环等待条件；
+
+- 活锁：两个或多个进程同时放弃自己的资源，然后又重试竞争所需的资源；
+
+  解决方法：随机等待一段时间；
+
+- 饥饿：线程因无法访问所需资源而无法执行下去的情况；
+
+  解决方法：保证资源充足；公平分配资源；避免持有锁的进程长时间执行；
+
+### 性能问题
+
+**由于锁其实就是将并行操作串行化**，如果串行化范围过大，多线程的性能优势就会收到影响，性能问题主要的解决办法就是：
+
+- 使用无锁的算法和数据结构：比如线程本地存储，写入时复制，乐观锁等；
+- 减少持有锁的时间：比如使用细粒度的锁；
+
+性能的衡量标准有：
+
+- 吞吐量：是指单位时间内能处理的请求数量；
+- 延迟：是指发出请求到收到响应的时间；
+- 并发量：是指能同时处理的请求量；
 
 ## 管程
+
+之前我们讨论了关于并发编程的容易产生bug的原因：可见性，原子性，有序性；然后又说明了解决方法：Java内存模型（`Happens-Before`规则）解决可见性和有序性，互斥锁解决原子性；在使用互斥锁的时候可能会碰到死锁的情况，有3种方法可以预防死锁的发生：破坏等待占有条件，破坏不可抢占条件，破坏循环等待条件；对于使用破坏等待占有条件来预防死锁的应用来说，主要是通过一次性申请所有资源来实现的，那么做到这一点的呢？使用等待-通知机制就可以做到这一点，线程获得互斥锁之后发现要求的条件不满足，则会进入等待状态，当要求的条件被满足时，线程会收到一个通知，然后线程需要再次获得互斥锁继续执行后面的代码；之后我们总结了并发编程中的问题：安全性（线程执行的结果会符合预期，不会出现可见性、有序性、原子性的程序一定是线程安全的）、活跃性（死锁、活锁、饥饿）、性能（吞吐量、延迟、并发量）；
+
+那么有没有一种核心技术能解决一切并发问题？实际上是有的，**管程技术可以解决一切并发问题**；
+
+### 什么是管程
+
+学习过操作系统课程都知道，在操作系统中，我们是使用信号量来解决并发问题的，而Java中实际使用的是管程技术，**管程和信号量是等价的，所谓的等价是指，可以用信号量来实现管程，也可以使用管程来实现信号量**；
+
+管程(Monitor)是指，**管理共享变量，以及共享变量的访问操作方式，使它们支持并发**，在Java中管程的体现就是：`synchronized`关键字、`wait()`、`notify()`、`notifyAll()`；
+
+
+
+### MESA模型
+
+
+
+
+
+
+
+### 管程中的wait()
+
+
+
+
+
+### 管程中的notify()、notifyAll()
+
+
+
+
+
+
 
 
 
