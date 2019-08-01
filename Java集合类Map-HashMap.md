@@ -489,13 +489,393 @@ final V putVal(int hash, K key, V value, boolean onlyIfAbsent,
 
 #### 3.7.1扩容机制
 
+```java
+final Node<K,V>[] resize() {
+    Node<K,V>[] oldTab = table; // 用于存储底层数组
+    int oldCap = (oldTab == null) ? 0 : oldTab.length; // 得到数组的大小，0表示未被初始化的情况
+    int oldThr = threshold; // 阈值 
+    int newCap, newThr = 0; // 新的数组大小和阈值
+    // 如果 table 不为空，表明已经初始化过了
+    if (oldCap > 0) {
+        // 当 table 容量超过容量最大值，则不再扩容
+        if (oldCap >= MAXIMUM_CAPACITY) {
+            threshold = Integer.MAX_VALUE;
+            return oldTab;
+        } 
+        // 按旧容量和阈值的2倍计算新容量和阈值的大小
+        else if ((newCap = oldCap << 1) < MAXIMUM_CAPACITY &&
+                 oldCap >= DEFAULT_INITIAL_CAPACITY)
+            newThr = oldThr << 1; // double threshold
+    } else if (oldThr > 0) // initial capacity was placed in threshold
+        /* oldCap==0 && oldThr>0的情况，是调用HashMap(int)或HashMap(int, float)的情况
+         * 初始化时，将 threshold 的值赋值给 newCap，
+         * HashMap 使用 threshold 变量暂时保存 initialCapacity 参数的值
+         */ 
+        // 由构造函数里的源码可知，在给定initialCapacity参数的构造函数在调用tableSizeFor()函数后的返回结果存储在threshold中（也就是oldThr中），总之就是oldThr就是初始容量
+        newCap = oldThr;
+    else {               // zero initial threshold signifies using defaults
+        /* oldCap==0 && oldThr==0 的情况就是HashMap为空，还没被初始化过
+         * 调用无参构造方法时，桶数组容量为默认容量，
+         * 阈值为默认容量与默认负载因子乘积
+         */
+        newCap = DEFAULT_INITIAL_CAPACITY;
+        newThr = (int)(DEFAULT_LOAD_FACTOR * DEFAULT_INITIAL_CAPACITY);
+    }
+    
+    // newThr 溢出导致为 0 时，按阈值计算公式进行计算
+    if (newThr == 0) {
+        float ft = (float)newCap * loadFactor;
+        newThr = (newCap < MAXIMUM_CAPACITY && ft < (float)MAXIMUM_CAPACITY ?
+                  (int)ft : Integer.MAX_VALUE);
+    }
+    // 将newThr赋值给threshold
+    threshold = newThr;
+    // 创建新的桶数组，桶数组的初始化也是在这里完成的
+    Node<K,V>[] newTab = (Node<K,V>[])new Node[newCap];
+    
+    table = newTab;
+    if (oldTab != null) {
+        // 如果旧的桶数组不为空，则遍历桶数组，并将键值对映射到新的桶数组中
+        for (int j = 0; j < oldCap; ++j) {
+            Node<K,V> e; // 表示当前处理的节点
+            if ((e = oldTab[j]) != null) {
+                oldTab[j] = null; // 方便gc
+                // oldTab[j]只有一个节点的情况
+                if (e.next == null)
+                    newTab[e.hash & (newCap - 1)] = e;
+                // 重新映射时，需要对红黑树进行拆分
+                else if (e instanceof TreeNode)
+                    ((TreeNode<K,V>)e).split(this, newTab, j, oldCap);
+                // 将oldTab[j]对应链表中的元素映射到新的桶数组中
+                else { // preserve order
+                    // 假设e.hash&(oldCap-1)值为m
+                    // 用于记录节点e.hash&(newCap-1)的值仍然为m的情况，也就是在原来位置情况
+                    Node<K,V> loHead = null, loTail = null;
+                    // 用于记录节点e.hash&(newCap-1)的值为m+oldCap的情况
+                    Node<K,V> hiHead = null, hiTail = null;
+                    Node<K,V> next;
+                    // 遍历链表，并将链表节点按原顺序进行分组
+                    do {
+                        next = e.next;
+                        // 该节点e仍然在原来桶位置
+                        if ((e.hash & oldCap) == 0) {
+                            if (loTail == null)
+                                loHead = e;
+                            else
+                                loTail.next = e;
+                            loTail = e;
+                        }
+                        // 该节点e在m+oldCap的位置
+                        else {
+                            if (hiTail == null)
+                                hiHead = e;
+                            else
+                                hiTail.next = e;
+                            hiTail = e;
+                        }
+                    } while ((e = next) != null);
+                    // 将分组后的链表映射到新桶中
+                    if (loTail != null) {
+                        loTail.next = null;
+                        newTab[j] = loHead;
+                    }
+                    if (hiTail != null) {
+                        hiTail.next = null;
+                        newTab[j + oldCap] = hiHead;
+                    }
+                }
+            }
+        }
+    }
+    return newTab;
+}
+```
 
+**所谓扩容是指，对HashMap底层数组的大小进行扩大**，从上面源码可以看出，`resize()`函数的逻辑是：
+
+- 计算新桶数组的大小newCap，新阈值newThr；
+- 根据计算出的newCap创建新的桶数组；
+- 将键值对节点重新映射到新的桶数组中，如果节点是TreeNode类型，需要拆分红黑树，如果是链表节点则按节点顺序进行分组；
+
+##### 计算newCap和newThr
+
+计算newCap和newThr的逻辑过程如下：
+
+```java
+// 第一个分支
+if(oldCap>0){
+    ...
+    // 嵌套分支
+    if(oldCap>=MAXIMUM_CAPACITY){
+
+    }else if((newCap=oldCap<<1)<MAXIMUM_CAPACITY && oldCap>=DEFAULT_INITIAL_CAPACITY){
+
+    }    
+    
+}else if(oldThr>0){
+    ...
+}else{
+    ...
+}
+
+// 第二个分支
+if(newThr==0){
+    ...
+}
+```
+
+**第一个分支：**
+
+|         条件         |                     情况说明                     |                             备注                             |
+| :------------------: | :----------------------------------------------: | :----------------------------------------------------------: |
+|       oldCap>0       | HashMap已经被初始化过，直接对HashMap底层数组扩容 |                                                              |
+| oldCap==0&&oldThr>0  |       HashMap未被初始化过，而且threshold>0       | 在调用HashMap(int)、HashMap(int, float)构造方法时会出现这种情况 |
+| oldCap==0&&oldThr==0 |      HashMap未被初始化过，而且threshold==0       |              在调用HashMap()无参构造函数时出现               |
+
+第一个条件和第三个条件里的代码都很好理解，这里主要说一下第二个条件：
+
+首先这里的`oldThr`也就是`threshold`，在介绍[构造函数3](#1)的时候，我们介绍过`tableSizeFor(int)`方法，该方法输入的参数`initialCapacity`，输出结果是第一个大于`initialCapacity`的2的幂；在构造函数3中把这个输出赋值给了`threshold`变量，所以现在我们有：
+
+```java
+newCap = oldThr = threshold = tableSizeFor(initialCapacity);
+```
+
+**所以我们初始化传入的initialCapacity参数会经过threshold赋值给新的容量**；
+
+- 嵌套分支
+
+  | 条件                      | 情况说明                                     | 备注                                                         |
+  | ------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+  | oldCap>= 2^30             | 桶数组大小大于2^30                           | 不再扩容                                                     |
+  | newCap<2^30 && oldCap>=16 | 新桶数组大小小于最大值，旧桶数组的大小大于16 | 新桶数组大小变成旧桶数组大小的两倍，新的阈值也变成原来阈值的两倍； |
+
+  在第二种情况下会出现`newThr`移位溢出的情况，具体如下图所示：
+
+  ![avatar](D:\img\newThr移位溢出.jpg)
+
+**第二个分支：**
+
+|   条件    |               情况说明               |           备注           |
+| :-------: | :----------------------------------: | :----------------------: |
+| newThr==0 | 第一个分支在计算newThr出现溢出的情况 | 使用阈值计算公式重新计算 |
+
+```java
+float ft = (float)newCap * loadFactor;
+```
+
+##### 链表节点映射
+
+HashMap底层的桶数组经过扩容之后，由于其数组大小发生了变化，所以原来在同一链表里的元素可能在新的桶数组中会在不同的位置（hash&(newCap-1)不一样了），但是这种变化并非没有规律的，首先看一个例子：
+
+假设桶数组大小n为16，虽然hash1与hash2值不相同，但是在进行取余运算时只用到了后4位，所以得到了相同的结果；
+
+![avatar](D:\img\hash求模.jpg)
+
+扩容之后，n变成了32，再进行hash&(n-1)的运算结果如下图所示：
+
+![avatar](D:\img\hash求模1.jpg)
+
+**从上面可以看出，扩容后的取余运算会根据hash值分成两组：（记原来余数为m）**
+
+- hash&(newCap-1)答案仍然为m；
+- hash&(newCap-1)答案为m+oldCap;
+
+**判断条件就是hash&oldCap==1**;
+
+
+
+介绍完上面的理论之后，我们现在来谈谈链表节点映射部分，例如我们有个HashMap如下图所示，在进行映射操作的时候，我们需要遍历链表，判断hash&oldCap==1是否成立，如果成立就将该节点尾插到头指针为hiHead、尾指针为hiTail的链表中；否则将该节点尾插入到头指针为loHead、尾指针为loTail的链表中；
+
+![avatar](D:\img\数组扩容链表映射1.jpg)
+
+插入结果如下图所示：
+
+![avatar](D:\img\数组扩容链表映射2.jpg)
+
+最后把loHead链表赋值给table[m]，把hiHead链表赋值给table[m+oldCap]，具体如下图所示：
+
+![avatar](D:\img\数组扩容链表映射3.jpg)
 
 
 
 #### 3.7.2链表树化、红黑树链化与拆分
 
+##### 链表树化
 
+```java
+// 当链表长度大于8是需要进行红黑树化
+static final int TREEIFY_THRESHOLD = 8;
+
+/**
+ * 当桶数组容量小于该值时，优先进行扩容，而不是树化
+ */
+static final int MIN_TREEIFY_CAPACITY = 64;
+
+static final class TreeNode<K,V> extends LinkedHashMap.Entry<K,V> {
+    TreeNode<K,V> parent;  // red-black tree links
+    TreeNode<K,V> left;
+    TreeNode<K,V> right;
+    TreeNode<K,V> prev;    // needed to unlink next upon deletion
+    boolean red;
+    TreeNode(int hash, K key, V val, Node<K,V> next) {
+        super(hash, key, val, next);
+    }
+}
+
+/**
+ * 将普通节点链表转换成树形节点链表
+ */
+final void treeifyBin(Node<K,V>[] tab, int hash) {
+    int n, index; Node<K,V> e;
+    // 桶数组容量小于 MIN_TREEIFY_CAPACITY，优先进行扩容而不是树化
+    if (tab == null || (n = tab.length) < MIN_TREEIFY_CAPACITY)
+        resize();
+    else if ((e = tab[index = (n - 1) & hash]) != null) {
+        // hd 为头节点（head），tl 为尾节点（tail）
+        TreeNode<K,V> hd = null, tl = null;
+        do {
+            // 将普通节点替换成树形节点
+            TreeNode<K,V> p = replacementTreeNode(e, null);
+            if (tl == null)
+                hd = p;
+            else {
+                p.prev = tl;
+                tl.next = p;
+            }
+            tl = p;
+        } while ((e = e.next) != null);  // 将普通链表转成由树形节点链表
+        if ((tab[index] = hd) != null)
+            // 将树形链表转换成红黑树
+            hd.treeify(tab);
+    }
+}
+
+TreeNode<K,V> replacementTreeNode(Node<K,V> p, Node<K,V> next) {
+    return new TreeNode<>(p.hash, p.key, p.value, next);
+}
+```
+
+在扩容过程中，红黑树化需要满足两个条件：
+
+- 链表长度大于等于TREEIFY_THRESHOLD（也就是8）；
+- 桶数组大小大于等于MIN_TREEIFY_CAPACITY（也就是64）；
+
+对于第二个条件的原因是：**在桶数组大小比较小时，导致hash冲突的主要原因是桶数组太小，这个时候扩容才是解决问题的最好方法；而且桶数组大小比较小时，扩容比较频繁而且扩容时还需要拆分红黑树，代价过大**；
+
+链表红黑树化的逻辑主要是在`treeifyBin(Node<K,V>[], int)`函数中进行的，该函数的主要逻辑是：
+
+- 先判断链表红黑树化的条件是否满足，如果不满足则进行扩容；
+- 否则使用指针hd记录链表的头，遍历链表构造TreeNode节点；
+- 调用`treeify()`函数完成红黑树化；
+
+**这里有一个需要注意的地方就是，由于TreeNode是继承Node类，所有TreeNode类中有next引用**，所以在遍历链表的时候，设置的prev，next字段其实就构成了一个双链表；
+
+![avatar](D:\img\链表树化.jpg)
+
+由于HashMap没有要求键实现Comparable接口，所以键之间的比较就是一个问题，为了解决这个问题，HashMap 是做了三步处理，确保可以比较出两个键的大小，如下：
+
+1. 比较键与键之间 hash 的大小，如果 hash 相同，继续往下比较
+2. 检测键类是否实现了 Comparable 接口，如果实现调用 compareTo 方法进行比较
+3. 如果仍未比较出大小，就需要进行仲裁了，仲裁方法为 tieBreakOrder
+
+![avatar](D:\img\链表树化后.jpg)
+
+链表转成红黑树后，原链表的顺序仍然会被引用仍被保留了（红黑树的根节点会被移动到链表的第一位），我们仍然可以按遍历链表的方式去遍历上面的红黑树。这样的结构为后面红黑树的切分以及红黑树转成链表做好了铺垫 ；
+
+##### 红黑树拆分
+
+```java
+// 红黑树转链表阈值
+static final int UNTREEIFY_THRESHOLD = 6;
+
+final void split(HashMap<K,V> map, Node<K,V>[] tab, int index, int bit) {
+    TreeNode<K,V> b = this;
+    // Relink into lo and hi lists, preserving order
+    TreeNode<K,V> loHead = null, loTail = null;
+    TreeNode<K,V> hiHead = null, hiTail = null;
+    int lc = 0, hc = 0;
+    /* 
+     * 红黑树节点仍然保留了 next 引用，故仍可以按链表方式遍历红黑树。
+     * 下面的循环是对红黑树节点进行分组，与上面类似
+     */
+    for (TreeNode<K,V> e = b, next; e != null; e = next) {
+        next = (TreeNode<K,V>)e.next;
+        e.next = null;
+        if ((e.hash & bit) == 0) {
+            if ((e.prev = loTail) == null)
+                loHead = e;
+            else
+                loTail.next = e;
+            loTail = e;
+            ++lc;
+        }
+        else {
+            if ((e.prev = hiTail) == null)
+                hiHead = e;
+            else
+                hiTail.next = e;
+            hiTail = e;
+            ++hc;
+        }
+    }
+
+    if (loHead != null) {
+        // 如果 loHead 不为空，且链表长度小于等于 6，则将红黑树转成链表
+        if (lc <= UNTREEIFY_THRESHOLD)
+            tab[index] = loHead.untreeify(map);
+        else {
+            tab[index] = loHead;
+            /* 
+             * hiHead == null 时，表明扩容后，
+             * 所有节点仍在原位置，树结构不变，无需重新树化
+             */
+            if (hiHead != null) 
+                loHead.treeify(tab);
+        }
+    }
+    // 与上面类似
+    if (hiHead != null) {
+        if (hc <= UNTREEIFY_THRESHOLD)
+            tab[index + bit] = hiHead.untreeify(map);
+        else {
+            tab[index + bit] = hiHead;
+            if (loHead != null)
+                hiHead.treeify(tab);
+        }
+    }
+}
+```
+
+在扩容后，和链表一样，红黑树也要进行节点映射，本来这个操作需要先将红黑树先转换为链表，再进行两边的节点映射，最后再把链表转换为红黑树；但是在将普通链表转成红黑树时，HashMap 通过两个额外的引用 next 和 prev 保留了原链表的节点顺序。这样再对红黑树进行重新映射时，完全可以按照映射链表的方式进行。这样就避免了将红黑树转成链表后再进行映射，无形中提高了效率；
+
+从源码上可以看得出，重新映射红黑树的逻辑和重新映射链表的逻辑基本一致。不同的地方在于，重新映射后，会将红黑树拆分成两条由 TreeNode 组成的链表。如果链表长度小于 UNTREEIFY_THRESHOLD，则将链表转换成普通链表。否则根据条件重新将 TreeNode 链表树化；
+
+![avatar](D:\img\红黑树节点映射.jpg)
+
+##### 红黑树链化
+
+```java
+final Node<K,V> untreeify(HashMap<K,V> map) {
+    Node<K,V> hd = null, tl = null;
+    // 遍历 TreeNode 链表，并用 Node 替换
+    for (Node<K,V> q = this; q != null; q = q.next) {
+        // 替换节点类型
+        Node<K,V> p = map.replacementNode(q, null);
+        if (tl == null)
+            hd = p;
+        else
+            tl.next = p;
+        tl = p;
+    }
+    return hd;
+}
+
+Node<K,V> replacementNode(Node<K,V> p, Node<K,V> next) {
+    return new Node<>(p.hash, p.key, p.value, next);
+}
+```
+
+由于红黑树的节点仍然保留了原来链表的信息，所以红黑树转换为链表的操作很简单；
 
 
 
